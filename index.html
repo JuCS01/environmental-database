@@ -4,14 +4,23 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Environmental Database – Cocaine in South America</title>
+
+  <!-- Tailwind for quick styling -->
   <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Leaflet + extras -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+
   <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+
+  <!-- PapaParse to read CSV -->
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
   <style>
     html, body { height: 100%; }
     #map { height: 520px; }
@@ -36,7 +45,7 @@
         <h2 class="text-lg font-semibold mb-3">Filters</h2>
         <div class="space-y-4">
           <div>
-            <label for="q" class="text-sm font-medium">Search (title, site, notes, link)</label>
+            <label for="q" class="text-sm font-medium">Search (site, link)</label>
             <input id="q" type="search" class="mt-1 w-full rounded-xl border px-3 py-2" placeholder="Keywords..." />
           </div>
           <div>
@@ -136,6 +145,7 @@
   </footer>
 
   <script>
+    /* === Replace here if you change sheet === */
     const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ0oe0Oz6VhNMYDcsLeJefA6y7ArU_cT8pafvGKJD4T_OlG59CWel1Mh1AdvHuEBjnWWF6nKB440MIu/pub?gid=0&single=true&output=csv";
 
     let records = [];
@@ -160,39 +170,66 @@
 
     async function loadFromSheet() {
       try {
-        const resp = await fetch(sheetUrl);
+        const resp = await fetch(sheetUrl, { cache: "no-store" });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const csvText = await resp.text();
+
         const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
-        const rows = parsed.data.map(row => mapRow(row));
-        records = rows.filter(r => r.country && r.site);
+        // Map defensively and drop truly empty rows
+        const rows = parsed.data
+          .filter(row => row && typeof row === 'object' && Object.keys(row).length > 0)
+          .map(mapRow)
+          .filter(r => r && (r.country || r.site)); // keep at least some identity
+
+        records = rows;
         populateFilters(records);
         applyFilters();
       } catch (err) {
+        console.error("Sheet load error:", err);
         alert("Error loading Google Sheet: " + err.message);
       }
     }
 
+    function safeParseFloat(v) {
+      if (v === null || v === undefined) return null;
+      const s = (typeof v === 'string') ? v.trim() : v;
+      if (s === "") return null;
+      const n = parseFloat(s);
+      return Number.isFinite(n) ? n : null;
+    }
+
+    function safeString(v, fallback = "N/A") {
+      if (v === null || v === undefined) return fallback;
+      const s = String(v).trim();
+      return s === "" ? fallback : s;
+    }
+
     function mapRow(row) {
+      // Expecting exact headers in English; fill N/A when empty
       return {
-        country: row["Country"] || "N/A",
-        site: row["Site"] || "N/A",
-        lat: parseFloat(row["Latitude"]) || null,
-        lon: parseFloat(row["Longitude"]) || null,
-        matrix: row["Environmental Matrix"] || "N/A",
-        study_type: row["Study type"] || "N/A",
-        compound: row["Compound"] || "N/A",
-        concentration_value: parseFloat(row["Concentration"]) || null,
-        concentration_unit: row["Units"] || "N/A",
-        method: row["Analytical methods"] || "N/A",
-        year: parseInt(row["Publication year"]) || null,
-        doi: row["Paper link"] || null
+        country: safeString(row["Country"]),
+        site: safeString(row["Site"]),
+        lat: safeParseFloat(row["Latitude"]),
+        lon: safeParseFloat(row["Longitude"]),
+        matrix: safeString(row["Environmental Matrix"]),
+        study_type: safeString(row["Study type"]),
+        compound: safeString(row["Compound"]),
+        concentration_value: safeParseFloat(row["Concentration"]),
+        concentration_unit: safeString(row["Units"]),
+        method: safeString(row["Analytical methods"]),
+        year: (val => {
+          const n = safeParseFloat(row["Publication year"]);
+          return Number.isFinite(n) ? Math.trunc(n) : null;
+        })(),
+        doi: (row["Paper link"] && String(row["Paper link"]).trim() !== "") ? row["Paper link"] : null
       };
     }
 
     function populateFilters(data) {
-      const countries = Array.from(new Set(data.map(d => d.country))).filter(Boolean).sort();
+      const countries = Array.from(new Set(data.map(d => d.country).filter(Boolean))).sort();
       const $countries = document.getElementById('countries');
       $countries.innerHTML = countries.map(c => `<option value="${c}">${c}</option>`).join('');
+
       const years = data.map(d => d.year).filter(v => typeof v === 'number');
       document.getElementById('yearMin').value = years.length ? Math.min(...years) : 2000;
       document.getElementById('yearMax').value = years.length ? Math.max(...years) : new Date().getFullYear();
@@ -210,16 +247,17 @@
       const onlyWithCoords = document.getElementById('onlyWithCoords').checked;
 
       filtered = records.filter(r => {
-        if (q && !(`${r.site}`.toLowerCase().includes(q))) return false;
+        if (q && !(`${r.site || ""}`.toLowerCase().includes(q))) return false;
         if (countries.length && !countries.includes(r.country)) return false;
         if (studyType && r.study_type !== studyType) return false;
         if (matrix && r.matrix !== matrix) return false;
         if (typeof r.year === 'number' && (r.year < yearMin || r.year > yearMax)) return false;
         if (!isNaN(concMin) && (r.concentration_value == null || r.concentration_value < concMin)) return false;
         if (!isNaN(concMax) && (r.concentration_value == null || r.concentration_value > concMax)) return false;
-        if (onlyWithCoords && !(isFinite(r.lat) && isFinite(r.lon))) return false;
+        if (onlyWithCoords && !(Number.isFinite(r.lat) && Number.isFinite(r.lon))) return false;
         return true;
       });
+
       renderMap();
       renderTable();
       updateStats();
@@ -227,7 +265,9 @@
 
     function initMap() {
       map = L.map('map', { center: [-15, -60], zoom: 4 });
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(map);
       markerLayer = L.markerClusterGroup();
       heatLayer = L.heatLayer([], { radius: 25, blur: 15, maxZoom: 10 });
     }
@@ -235,15 +275,26 @@
     function renderMap() {
       markerLayer.clearLayers();
       const pts = [];
+
       filtered.forEach(r => {
-        if (isFinite(r.lat) && isFinite(r.lon)) {
+        if (Number.isFinite(r.lat) && Number.isFinite(r.lon)) {
           const m = L.marker([r.lat, r.lon]);
-          m.bindPopup(`<b>${r.site}</b><br>${r.country}<br>${r.compound}<br>${r.concentration_value || 'N/A'} ${r.concentration_unit}`);
+          const conc = (r.concentration_value != null ? r.concentration_value : 'N/A') + ' ' + (r.concentration_unit || '');
+          m.bindPopup(
+            `<b>${r.site}</b><br>${r.country}<br>${r.compound}<br>${conc}<br>${r.method}`
+          );
           markerLayer.addLayer(m);
           pts.push([r.lat, r.lon, 0.5]);
         }
       });
-      if (markerLayer.getLayers().length) map.fitBounds(markerLayer.getBounds(), { padding: [20, 20] });
+
+      if (!map.hasLayer(markerLayer) && !document.getElementById('toggleHeat').checked) {
+        map.addLayer(markerLayer);
+      }
+      if (markerLayer.getLayers().length) {
+        map.fitBounds(markerLayer.getBounds(), { padding: [20, 20] });
+      }
+
       if (document.getElementById('toggleHeat').checked) {
         heatLayer.setLatLngs(pts);
         if (!map.hasLayer(heatLayer)) map.addLayer(heatLayer);
@@ -260,15 +311,15 @@
       tbody.innerHTML = data.map(r => {
         const linkHtml = r.doi ? `<a href="${r.doi}" target="_blank" class="text-indigo-600">Link</a>` : '';
         return `<tr class="border-b hover:bg-gray-50">
-          <td class="p-2">${r.year || ''}</td>
-          <td class="p-2">${r.country}</td>
-          <td class="p-2">${r.site}</td>
-          <td class="p-2">${r.compound}</td>
-          <td class="p-2">${r.matrix}</td>
-          <td class="p-2">${r.study_type}</td>
+          <td class="p-2">${r.year ?? ''}</td>
+          <td class="p-2">${r.country ?? 'N/A'}</td>
+          <td class="p-2">${r.site ?? 'N/A'}</td>
+          <td class="p-2">${r.compound ?? 'N/A'}</td>
+          <td class="p-2">${r.matrix ?? 'N/A'}</td>
+          <td class="p-2">${r.study_type ?? 'N/A'}</td>
           <td class="p-2">${r.concentration_value ?? ''}</td>
-          <td class="p-2">${r.concentration_unit}</td>
-          <td class="p-2">${r.method}</td>
+          <td class="p-2">${r.concentration_unit ?? 'N/A'}</td>
+          <td class="p-2">${r.method ?? 'N/A'}</td>
           <td class="p-2">${linkHtml}</td>
         </tr>`;
       }).join('');
@@ -281,8 +332,7 @@
 
     function compareBy(key, dir) {
       return (a, b) => {
-        const va = a[key];
-        const vb = b[key];
+        const va = a[key], vb = b[key];
         if (va == null && vb == null) return 0;
         if (va == null) return 1;
         if (vb == null) return -1;
@@ -299,7 +349,3 @@
   </script>
 </body>
 </html>
-
-
-
-
