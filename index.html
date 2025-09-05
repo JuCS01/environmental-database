@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Environmental Database – Cocaine in South America</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+  <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <style>
+    html, body { height: 100%; }
+    #map { height: 520px; }
+    .leaflet-container { font: inherit; }
+    th.sortable { cursor: pointer; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900">
+  <header class="bg-white border-b sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+      <div>
+        <h1 class="text-2xl font-bold">Environmental Database – Cocaine in South America</h1>
+        <p class="text-sm text-gray-600">Prototype connected to Google Sheets (CSV export).</p>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
+    <!-- Sidebar filters -->
+    <aside class="lg:col-span-1">
+      <div class="bg-white border rounded-2xl p-4 shadow-sm">
+        <h2 class="text-lg font-semibold mb-3">Filters</h2>
+        <div class="space-y-4">
+          <div>
+            <label for="q" class="text-sm font-medium">Search (title, site, notes, link)</label>
+            <input id="q" type="search" class="mt-1 w-full rounded-xl border px-3 py-2" placeholder="Keywords..." />
+          </div>
+          <div>
+            <label for="countries" class="text-sm font-medium">Country (multi)</label>
+            <select id="countries" multiple size="6" class="mt-1 w-full rounded-xl border px-3 py-2"></select>
+          </div>
+          <div>
+            <label for="studyType" class="text-sm font-medium">Study type</label>
+            <select id="studyType" class="mt-1 w-full rounded-xl border px-3 py-2">
+              <option value="">(any)</option>
+              <option>Monitoring</option>
+              <option>Experimental</option>
+              <option>Modeling</option>
+              <option>Review</option>
+            </select>
+          </div>
+          <div>
+            <label for="matrix" class="text-sm font-medium">Environmental matrix</label>
+            <select id="matrix" class="mt-1 w-full rounded-xl border px-3 py-2">
+              <option value="">(any)</option>
+              <option>Water</option>
+              <option>Sediment</option>
+              <option>Biota</option>
+              <option>Air</option>
+              <option>Soil</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-sm font-medium">Publication year</label>
+            <div class="mt-1 flex items-center gap-2">
+              <input id="yearMin" type="number" class="w-24 rounded-xl border px-2 py-2" />
+              <span class="text-sm">to</span>
+              <input id="yearMax" type="number" class="w-24 rounded-xl border px-2 py-2" />
+            </div>
+          </div>
+          <div>
+            <label class="text-sm font-medium">Concentration</label>
+            <div class="mt-1 grid grid-cols-2 gap-2">
+              <input id="concMin" type="number" step="any" class="rounded-xl border px-3 py-2" placeholder="min" />
+              <input id="concMax" type="number" step="any" class="rounded-xl border px-3 py-2" placeholder="max" />
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <input id="onlyWithCoords" type="checkbox" class="rounded" />
+            <label for="onlyWithCoords" class="text-sm">Only studies with coordinates</label>
+          </div>
+          <div class="pt-2">
+            <button id="btnApply" class="w-full px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white">Apply filters</button>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main content -->
+    <section class="lg:col-span-3 space-y-6">
+      <div class="bg-white border rounded-2xl p-4 shadow-sm flex flex-wrap gap-4 items-center justify-between">
+        <div>
+          <h2 class="text-lg font-semibold">Map & data table</h2>
+          <p class="text-sm text-gray-600">Illicit drugs in the environment – focus on cocaine and metabolites</p>
+        </div>
+        <div class="flex items-center gap-3 text-sm">
+          <span id="statTotal" class="px-3 py-1 rounded-full bg-gray-100">0 studies</span>
+          <span id="statFiltered" class="px-3 py-1 rounded-full bg-indigo-50 text-indigo-700">0 visible</span>
+          <label class="flex items-center gap-2 text-gray-700">
+            <input id="toggleHeat" type="checkbox" class="rounded" />
+            <span>Heatmap view</span>
+          </label>
+        </div>
+      </div>
+      <div id="map" class="bg-white border rounded-2xl overflow-hidden shadow-sm"></div>
+      <div class="bg-white border rounded-2xl p-4 shadow-sm">
+        <div class="overflow-x-auto">
+          <table id="dataTable" class="min-w-full text-sm">
+            <thead>
+              <tr class="border-b bg-gray-50">
+                <th class="p-2 text-left sortable" data-key="year">Year</th>
+                <th class="p-2 text-left sortable" data-key="country">Country</th>
+                <th class="p-2 text-left sortable" data-key="site">Site</th>
+                <th class="p-2 text-left sortable" data-key="compound">Compound</th>
+                <th class="p-2 text-left sortable" data-key="matrix">Matrix</th>
+                <th class="p-2 text-left sortable" data-key="study_type">Type</th>
+                <th class="p-2 text-left sortable" data-key="concentration_value">Conc.</th>
+                <th class="p-2 text-left">Units</th>
+                <th class="p-2 text-left">Methods</th>
+                <th class="p-2 text-left">Link</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="max-w-7xl mx-auto px-4 py-8 text-xs text-gray-500">
+    <p>Prototype linked to Google Sheets. Update the sheet and all viewers will see changes automatically.</p>
+  </footer>
+
+  <script>
+    const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT2YNTirn3jD8quENIjLaulCUmRd3VrRhcNb2Y7X48Sm0QnP8dOPJsP5NLNRc-I_OWecmDo94ebHNCD/pub?gid=0&single=true&output=csv";
+
+    let records = [];
+    let filtered = [];
+    let map, markerLayer, heatLayer;
+    let sortState = { key: 'year', dir: 'desc' };
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initMap();
+      loadFromSheet();
+      document.getElementById('btnApply').addEventListener('click', applyFilters);
+      document.getElementById('toggleHeat').addEventListener('change', renderMap);
+      document.querySelectorAll('#dataTable th.sortable').forEach(th => {
+        th.addEventListener('click', () => {
+          const key = th.dataset.key;
+          sortState.dir = (sortState.key === key && sortState.dir === 'asc') ? 'desc' : 'asc';
+          sortState.key = key;
+          renderTable();
+        });
+      });
+    });
+
+    async function loadFromSheet() {
+      try {
+        const resp = await fetch(sheetUrl);
+        const csvText = await resp.text();
+        const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
+        const rows = parsed.data.map(row => mapRow(row));
+        records = rows.filter(r => r.country && r.site);
+        populateFilters(records);
+        applyFilters();
+      } catch (err) {
+        alert("Error loading Google Sheet: " + err.message);
+      }
+    }
+
+    function mapRow(row) {
+      return {
+        country: row["Country"] || "N/A",
+        site: row["Site"] || "N/A",
+        lat: parseFloat(row["Latitude"]) || null,
+        lon: parseFloat(row["Longitude"]) || null,
+        matrix: row["Environmental Matrix"] || "N/A",
+        study_type: row["Study type"] || "N/A",
+        compound: row["Compound"] || "N/A",
+        concentration_value: parseFloat(row["Concentration"]) || null,
+        concentration_unit: row["Units"] || "N/A",
+        method: row["Analytical methods"] || "N/A",
+        year: parseInt(row["Publication year"]) || null,
+        doi: row["Paper link"] || null
+      };
+    }
+
+    function populateFilters(data) {
+      const countries = Array.from(new Set(data.map(d => d.country))).filter(Boolean).sort();
+      const $countries = document.getElementById('countries');
+      $countries.innerHTML = countries.map(c => `<option value="${c}">${c}</option>`).join('');
+      const years = data.map(d => d.year).filter(v => typeof v === 'number');
+      document.getElementById('yearMin').value = years.length ? Math.min(...years) : 2000;
+      document.getElementById('yearMax').value = years.length ? Math.max(...years) : new Date().getFullYear();
+    }
+
+    function applyFilters() {
+      const q = (document.getElementById('q').value || '').toLowerCase();
+      const countries = Array.from(document.getElementById('countries').selectedOptions).map(o => o.value);
+      const studyType = document.getElementById('studyType').value;
+      const matrix = document.getElementById('matrix').value;
+      const yearMin = parseInt(document.getElementById('yearMin').value, 10);
+      const yearMax = parseInt(document.getElementById('yearMax').value, 10);
+      const concMin = parseFloat(document.getElementById('concMin').value);
+      const concMax = parseFloat(document.getElementById('concMax').value);
+      const onlyWithCoords = document.getElementById('onlyWithCoords').checked;
+
+      filtered = records.filter(r => {
+        if (q && !(`${r.site}`.toLowerCase().includes(q))) return false;
+        if (countries.length && !countries.includes(r.country)) return false;
+        if (studyType && r.study_type !== studyType) return false;
+        if (matrix && r.matrix !== matrix) return false;
+        if (typeof r.year === 'number' && (r.year < yearMin || r.year > yearMax)) return false;
+        if (!isNaN(concMin) && (r.concentration_value == null || r.concentration_value < concMin)) return false;
+        if (!isNaN(concMax) && (r.concentration_value == null || r.concentration_value > concMax)) return false;
+        if (onlyWithCoords && !(isFinite(r.lat) && isFinite(r.lon))) return false;
+        return true;
+      });
+      renderMap();
+      renderTable();
+      updateStats();
+    }
+
+    function initMap() {
+      map = L.map('map', { center: [-15, -60], zoom: 4 });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+      markerLayer = L.markerClusterGroup();
+      heatLayer = L.heatLayer([], { radius: 25, blur: 15, maxZoom: 10 });
+    }
+
+    function renderMap() {
+      markerLayer.clearLayers();
+      const pts = [];
+      filtered.forEach(r => {
+        if (isFinite(r.lat) && isFinite(r.lon)) {
+          const m = L.marker([r.lat, r.lon]);
+          m.bindPopup(`<b>${r.site}</b><br>${r.country}<br>${r.compound}<br>${r.concentration_value || 'N/A'} ${r.concentration_unit}`);
+          markerLayer.addLayer(m);
+          pts.push([r.lat, r.lon, 0.5]);
+        }
+      });
+      if (markerLayer.getLayers().length) map.fitBounds(markerLayer.getBounds(), { padding: [20, 20] });
+      if (document.getElementById('toggleHeat').checked) {
+        heatLayer.setLatLngs(pts);
+        if (!map.hasLayer(heatLayer)) map.addLayer(heatLayer);
+        if (map.hasLayer(markerLayer)) map.removeLayer(markerLayer);
+      } else {
+        if (!map.hasLayer(markerLayer)) map.addLayer(markerLayer);
+        if (map.hasLayer(heatLayer)) map.removeLayer(heatLayer);
+      }
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('tableBody');
+      const data = [...filtered].sort(compareBy(sortState.key, sortState.dir));
+      tbody.innerHTML = data.map(r => {
+        const linkHtml = r.doi ? `<a href="${r.doi}" target="_blank" class="text-indigo-600">Link</a>` : '';
+        return `<tr class="border-b hover:bg-gray-50">
+          <td class="p-2">${r.year || ''}</td>
+          <td class="p-2">${r.country}</td>
+          <td class="p-2">${r.site}</td>
+          <td class="p-2">${r.compound}</td>
+          <td class="p-2">${r.matrix}</td>
+          <td class="p-2">${r.study_type}</td>
+          <td class="p-2">${r.concentration_value ?? ''}</td>
+          <td class="p-2">${r.concentration_unit}</td>
+          <td class="p-2">${r.method}</td>
+          <td class="p-2">${linkHtml}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    function updateStats() {
+      document.getElementById('statTotal').textContent = `${records.length} studies`;
+      document.getElementById('statFiltered').textContent = `${filtered.length} visible`;
+    }
+
+    function compareBy(key, dir) {
+      return (a, b) => {
+        const va = a[key];
+        const vb = b[key];
+        if (va == null && vb == null) return 0;
+        if (va == null) return 1;
+        if (vb == null) return -1;
+        if (typeof va === 'number' && typeof vb === 'number') {
+          return dir === 'asc' ? va - vb : vb - va;
+        }
+        const sa = String(va).toLowerCase();
+        const sb = String(vb).toLowerCase();
+        if (sa < sb) return dir === 'asc' ? -1 : 1;
+        if (sa > sb) return dir === 'asc' ? 1 : -1;
+        return 0;
+      };
+    }
+  </script>
+</body>
+</html>
