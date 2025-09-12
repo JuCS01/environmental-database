@@ -19,11 +19,32 @@
   <!-- PapaParse -->
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- D3 para chord diagram -->
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+
   <style>
     html, body { height: 100%; }
     #map { height: 520px; }
     .leaflet-container { font: inherit; }
     th.sortable { cursor: pointer; }
+
+    /* Contenedores de gráficos: una debajo de la otra y tamaño moderado */
+    .vizBox {
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 0.75rem;
+      padding: 0.75rem;
+      box-shadow: 0 1px 2px rgba(0,0,0,.04);
+    }
+    .vizCanvas, .vizSvgWrap {
+      width: 100%;
+      height: 380px;             /* altura controlada */
+    }
+    /* que SVG sea responsive sin desbordar */
+    .vizSvgWrap svg { width: 100%; height: 100%; }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-900">
@@ -72,8 +93,10 @@
             <label for="matrix" class="text-sm font-medium">Environmental matrix</label>
             <select id="matrix" class="mt-1 w-full rounded-xl border px-3 py-2">
               <option value="">(any)</option>
-              <option>Water</option>
-              <option>Sediment</option>
+              <option>Wastewater</option>
+              <option>Freshwater</option>
+              <option>Seawater</option>
+              <option>Drinking water</option>
               <option>Biota</option>
               <option>Air</option>
               <option>Soil</option>
@@ -111,7 +134,7 @@
 
     <!-- Main content -->
     <section class="lg:col-span-3 space-y-6">
-      <!-- MAP CARD -->
+      <!-- MAP -->
       <div id="mapHeader" class="bg-white border rounded-2xl p-4 shadow-sm flex flex-wrap gap-4 items-center justify-between">
         <div>
           <h2 class="text-lg font-semibold">Map</h2>
@@ -131,7 +154,7 @@
         <div id="map" class="h-[520px]"></div>
       </div>
 
-      <!-- TABLE CARD (starts hidden) -->
+      <!-- TABLE -->
       <div id="tableHeader" class="bg-white border rounded-2xl p-4 shadow-sm flex flex-wrap gap-4 items-center justify-between">
         <div>
           <h2 class="text-lg font-semibold">Data table</h2>
@@ -163,43 +186,21 @@
         </div>
       </div>
 
-      <!-- EFFECTS CARD -->
-      <div id="effectsHeader" class="bg-white border rounded-2xl p-4 shadow-sm">
-        <div class="flex items-center justify-between">
-          <div>
-            <h2 class="text-lg font-semibold">Predicted effects (QSAR)</h2>
-            <p class="text-sm text-gray-600">
-              Based on VEGA QSAR fields in your sheet (logKow, BCF, LC50, Mutagenicity, etc.).
-            </p>
-          </div>
-          <div class="text-xs text-gray-500" id="effectsHint">Select a site to view details.</div>
-        </div>
-
-        <div id="effectsCard" class="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <!-- Left: summary -->
-          <div class="p-3 border rounded-xl">
-            <h3 class="font-medium mb-2" id="effTitle">No site selected</h3>
-            <div id="effBadges" class="flex flex-wrap gap-2 text-xs"></div>
-            <div class="mt-3 text-sm text-gray-700" id="effSummary">
-              Choose a marker on the map to see QSAR-based effects.
-            </div>
-          </div>
-          <!-- Right: table -->
-          <div class="p-3 border rounded-xl overflow-x-auto">
-            <table class="min-w-full text-sm">
-              <tbody id="effTable"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <!-- IMAGES / TRENDS CARD -->
+      <!-- TRENDS: UNA DEBAJO DE LA OTRA -->
       <div id="imagesHeader" class="bg-white border rounded-2xl p-4 shadow-sm">
         <h2 class="text-lg font-semibold mb-2">Trends</h2>
-        <p class="text-xs text-gray-500 mb-3">Tip: browsers no siempre renderizan TIFF. Si no ves las imágenes, conviene subirlas como PNG/JPG/WebP.</p>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <img src="images/image1.jpg" alt="Image 1" class="rounded-lg shadow-md border object-contain w-full h-80 bg-gray-50">
-          <img src="images/image2.jpg" alt="Image 2" class="rounded-lg shadow-md border object-contain w-full h-80 bg-gray-50">
+        <p class="text-xs text-gray-500 mb-3">Auto-generated from Google Sheet. Regenerates after filtering.</p>
+
+        <!-- 1) CHORD DIAGRAM -->
+        <div class="vizBox mb-4">
+          <h3 class="font-medium mb-2">Country ↔︎ Drug groups (Chord)</h3>
+          <div id="chordChart" class="vizSvgWrap"></div>
+        </div>
+
+        <!-- 2) BARRAS APILADAS -->
+        <div class="vizBox">
+          <h3 class="font-medium mb-2">Environmental Matrix by Country</h3>
+          <canvas id="chartMatrices" class="vizCanvas"></canvas>
         </div>
       </div>
     </section>
@@ -211,20 +212,30 @@
 
   <script>
     /* === CSV de Google Sheets (HOJA 2) === */
-    const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ0oe0Oz6VhNMYDcsLeJefA6y7ArU_cT8pafvGKJD4T_OlG59CWel1Mh1AdvHuEBjnWWF6nKB440MIu/pub?gid=43236599&single=true&output=csv";
+    const sheetUrl =
+      "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ0oe0Oz6VhNMYDcsLeJefA6y7ArU_cT8pafvGKJD4T_OlG59CWel1Mh1AdvHuEBjnWWF6nKB440MIu/pub?gid=43236599&single=true&output=csv";
 
     let records = [];
     let filtered = [];
     let map, markerLayer, heatLayer;
     let sortState = { key: 'year', dir: 'desc' };
 
+    // Chart.js handle
+    let matricesChart = null;
+
     document.addEventListener('DOMContentLoaded', () => {
       initMap();
       loadFromSheet();
 
       // filtros
-      document.getElementById('btnApply').addEventListener('click', applyFilters);
+      document.getElementById('btnApply').addEventListener('click', () => {
+        applyFilters();
+        buildChord(filtered);     // refresca chord con datos filtrados
+        buildBarStack(filtered);  // refresca barras con datos filtrados
+      });
       document.getElementById('toggleHeat').addEventListener('change', renderMap);
+
+      // orden tabla
       document.querySelectorAll('#dataTable th.sortable').forEach(th => {
         th.addEventListener('click', () => {
           const key = th.dataset.key;
@@ -262,25 +273,19 @@
     function normalizeKey(s) {
       return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
     }
-
-    // Número tolerante: coma decimal, ± y guiones Unicode
     function parseNumberFlexible(v) {
       if (v === null || v === undefined) return null;
       let s = String(v).trim();
       if (!s) return null;
-      s = s.replace(/[−–—]/g, '-');     // menos unicode -> '-'
-      if (s.includes('±')) s = s.split('±')[0].trim(); // usa la media
-      if (s.includes(',')) {            // coma decimal -> punto
-        s = s.replace(/\./g, '');
-        s = s.replace(/,/g, '.');
-      }
+      s = s.replace(/[−–—]/g, '-');
+      if (s.includes('±')) s = s.split('±')[0].trim();
+      if (s.includes(',')) { s = s.replace(/\./g, ''); s = s.replace(/,/g, '.'); }
       s = s.replace(/[^0-9eE+\-\.]/g, '');
       const n = Number(s);
       return Number.isFinite(n) ? n : null;
     }
     function safeParseFloat(v) { return parseNumberFlexible(v); }
 
-    // Aliases tolerantes (inglés/español, acentos, etc.)
     const HEADER_ALIASES = {
       'country':'country','pais':'country','país':'country',
       'site':'site','sitio':'site','lugar':'site',
@@ -293,22 +298,19 @@
       'units':'concentration_unit','unidades':'concentration_unit',
       'analytical methods':'method','metodos analiticos':'method','métodos analíticos':'method',
       'publication year':'year','year':'year','año de publicacion':'year','año de publicación':'year',
-      'paper link':'doi','link':'doi','enlace':'doi','doi':'doi'
+      'paper link':'doi','link':'doi','enlace':'doi','doi':'doi',
+      // QSAR (por si los usas en popups)
+      'logkow': 'logkow','log kow':'logkow','logp':'logkow',
+      'solubility (mg/l)':'solubility','solubility':'solubility',
+      'bcf (l/kg)':'bcf','bcf':'bcf',
+      'lc50 fish (mg/l)':'lc50_fish','lc50 fish':'lc50_fish',
+      'ec50 daphnia (mg/l)':'ec50_daphnia','ec50 daphnia':'ec50_daphnia',
+      'ec50 algae (mg/l)':'ec50_algae','ec50 algae':'ec50_algae',
+      'mutagenicity':'mutagenicity',
+      'biodegradability (%)':'biodeg_pct','biodegradability':'biodeg_pct',
+      'domain score':'ad_score','applicability domain score':'ad_score',
+      'qsar model':'qsar_model','ad class':'ad_class'
     };
-
-    // Aliases para columnas QSAR
-    Object.assign(HEADER_ALIASES, {
-      'logkow': 'logkow', 'log kow': 'logkow', 'logp': 'logkow',
-      'solubility (mg/l)': 'solubility', 'solubility': 'solubility',
-      'bcf (l/kg)': 'bcf', 'bcf': 'bcf',
-      'lc50 fish (mg/l)': 'lc50_fish', 'lc50 fish': 'lc50_fish',
-      'ec50 daphnia (mg/l)': 'ec50_daphnia', 'ec50 daphnia': 'ec50_daphnia',
-      'ec50 algae (mg/l)': 'ec50_algae', 'ec50 algae': 'ec50_algae',
-      'mutagenicity': 'mutagenicity',
-      'biodegradability (%)': 'biodeg_pct', 'biodegradability': 'biodeg_pct',
-      'domain score': 'ad_score', 'applicability domain score': 'ad_score',
-      'qsar model': 'qsar_model', 'ad class': 'ad_class'
-    });
 
     function mapRow(rawRow) {
       const picked = {};
@@ -316,7 +318,6 @@
         const aliasKey = HEADER_ALIASES[normalizeKey(k)];
         if (aliasKey) picked[aliasKey] = rawRow[k];
       }
-
       const concMean = parseNumberFlexible(picked.concentration_value);
       const concStr = picked.concentration_value != null ? String(picked.concentration_value) : '';
 
@@ -328,28 +329,15 @@
         matrix: safeString(picked.matrix),
         study_type: safeString(picked.study_type),
         compound: safeString(picked.compound),
-        concentration_value: concMean,         // número (media si venía "±")
-        concentration_text: concStr || null,   // texto original para mostrar si quieres
+        concentration_value: concMean,
+        concentration_text: concStr || null,
         concentration_unit: safeString(picked.concentration_unit),
         method: safeString(picked.method),
         year: (() => {
           const n = safeParseFloat(picked.year);
           return Number.isFinite(n) ? Math.trunc(n) : null;
         })(),
-        doi: (picked.doi && String(picked.doi).trim() !== '') ? picked.doi : null,
-
-        // QSAR
-        logkow: safeParseFloat(picked.logkow),
-        solubility: safeParseFloat(picked.solubility),
-        bcf: safeParseFloat(picked.bcf),
-        lc50_fish: safeParseFloat(picked.lc50_fish),
-        ec50_daphnia: safeParseFloat(picked.ec50_daphnia),
-        ec50_algae: safeParseFloat(picked.ec50_algae),
-        mutagenicity: picked.mutagenicity ? String(picked.mutagenicity).trim() : null,
-        biodeg_pct: safeParseFloat(picked.biodeg_pct),
-        ad_score: safeParseFloat(picked.ad_score),
-        ad_class: picked.ad_class ? String(picked.ad_class).trim() : null,
-        qsar_model: picked.qsar_model ? String(picked.qsar_model).trim() : null
+        doi: (picked.doi && String(picked.doi).trim() !== '') ? picked.doi : null
       };
     }
 
@@ -368,6 +356,9 @@
         records = rows;
         populateFilters(records);
         applyFilters();
+        // primer render
+        buildChord(filtered);
+        buildBarStack(filtered);
       } catch (err) {
         console.error("Sheet load error:", err);
         alert("Error loading Google Sheet: " + err.message);
@@ -375,17 +366,14 @@
     }
 
     function populateFilters(data) {
-      // Countries
       const countries = Array.from(new Set(data.map(d => d.country).filter(Boolean))).sort();
       document.getElementById('countries').innerHTML =
         countries.map(c => `<option value="${c}">${c}</option>`).join('');
 
-      // Compounds
       const compounds = Array.from(new Set(data.map(d => d.compound).filter(Boolean))).sort();
       document.getElementById('compounds').innerHTML =
         compounds.map(c => `<option value="${c}">${c}</option>`).join('');
 
-      // Years
       const years = data.map(d => d.year).filter(v => typeof v === 'number');
       document.getElementById('yearMin').value = years.length ? Math.min(...years) : 2000;
       document.getElementById('yearMax').value = years.length ? Math.max(...years) : new Date().getFullYear();
@@ -444,17 +432,9 @@
                 ? `${r.concentration_value} ${r.concentration_unit || ''}`
                 : 'N/A');
 
-          const qsarBits = [];
-          if (r.bcf != null) qsarBits.push(`BCF: ${r.bcf} L/kg`);
-          if (r.lc50_fish != null) qsarBits.push(`LC50 fish: ${r.lc50_fish} mg/L`);
-          if (r.mutagenicity) qsarBits.push(`Ames: ${r.mutagenicity}`);
-          const qsarLine = qsarBits.length ? `<br><i>${qsarBits.join(' · ')}</i>` : '';
-
           m.bindPopup(
-            `<b>${r.site}</b><br>${r.country}<br>${r.compound}<br>${concText}<br>${r.method}${qsarLine}`
+            `<b>${r.site}</b><br>${r.country}<br>${r.compound}<br>${concText}<br>${r.method}`
           );
-
-          m.on('click', () => renderEffects(r));
 
           markerLayer.addLayer(m);
           pts.push([r.lat, r.lon, 0.5]);
@@ -472,9 +452,6 @@
         if (!map.hasLayer(heatLayer)) map.addLayer(heatLayer);
         if (map.hasLayer(markerLayer)) map.removeLayer(markerLayer);
       }
-
-      // Mostrar por defecto el primero filtrado si existe
-      if (filtered.length) renderEffects(filtered[0]);
     }
 
     function renderTable() {
@@ -519,75 +496,151 @@
       };
     }
 
-    // --- Interpretadores simples para badges ---
-    function classifyBCF(bcf) {
-      if (bcf == null) return 'BCF: Unknown';
-      if (bcf > 2000) return 'BCF: High (bioaccumulative)';
-      if (bcf >= 500) return 'BCF: Moderate';
-      return 'BCF: Low';
-    }
-    function classifyLC50(lc50) {
-      if (lc50 == null) return 'LC50: Unknown';
-      if (lc50 < 1) return 'LC50: Very toxic (<1 mg/L)';
-      if (lc50 < 10) return 'LC50: Toxic (1–10 mg/L)';
-      if (lc50 < 100) return 'LC50: Harmful (10–100 mg/L)';
-      return 'LC50: Low concern (≥100 mg/L)';
+    /* --------- GRÁFICO 1: CHORD (D3) --------- */
+    // Mapea un compuesto a un grupo de droga
+    function drugGroupOf(nameRaw) {
+      const s = (nameRaw || '').toLowerCase();
+      if (!s) return 'Other';
+      if (/(cocaine|benzoylecgonine|ecgonine)/i.test(s)) return 'Cocaine';
+      if (/(thc|cannabi|cbd|cannabinol)/i.test(s)) return 'Cannabinoids';
+      if (/(morphine|codeine|opioid|heroin|oxycodone|fentanyl)/i.test(s)) return 'Opioids';
+      if (/(mdma|ecstasy|mda)/i.test(s)) return 'MDMA';
+      if (/(ketamine|norketamine)/i.test(s)) return 'Ketamine';
+      return 'Other';
     }
 
-    function renderEffects(r) {
-      // Título
-      const effTitle = document.getElementById('effTitle');
-      effTitle.textContent = `${r.site || 'Unknown site'} — ${r.compound || 'Unknown compound'}`;
+    function buildChord(data) {
+      // nodos = países + grupos
+      const countries = Array.from(new Set(data.map(d => d.country).filter(Boolean))).sort();
+      const groups = ['Cocaine', 'Cannabinoids', 'Opioids', 'MDMA', 'Ketamine', 'Other'];
 
-      // Badges
-      const badges = [];
-      badges.push(`<span class="px-2 py-1 rounded-full bg-gray-100">${classifyBCF(r.bcf)}</span>`);
-      badges.push(`<span class="px-2 py-1 rounded-full bg-gray-100">${classifyLC50(r.lc50_fish)}</span>`);
-      if (r.mutagenicity) {
-        badges.push(`<span class="px-2 py-1 rounded-full ${
-          /pos/i.test(r.mutagenicity) ? 'bg-red-100 text-red-700' :
-          /neg/i.test(r.mutagenicity) ? 'bg-green-100 text-green-700' :
-          'bg-yellow-100 text-yellow-700'
-        }">Ames: ${r.mutagenicity}</span>`);
-      }
-      if (r.ad_score != null) {
-        badges.push(`<span class="px-2 py-1 rounded-full bg-indigo-50 text-indigo-700">AD: ${r.ad_score}</span>`);
-      }
-      if (r.ad_class) {
-        badges.push(`<span class="px-2 py-1 rounded-full bg-indigo-50 text-indigo-700">${r.ad_class}</span>`);
-      }
-      document.getElementById('effBadges').innerHTML = badges.join(' ');
+      const nodes = [...countries, ...groups];
+      const idx = new Map(nodes.map((n,i)=>[n,i]));
+      const n = nodes.length;
+      const M = Array.from({length:n}, ()=>Array(n).fill(0));
 
-      // Resumen textual
-      const parts = [];
-      if (r.logkow != null) parts.push(`logKow = ${r.logkow}`);
-      if (r.bcf != null) parts.push(`BCF = ${r.bcf} L/kg (${classifyBCF(r.bcf).replace('BCF: ', '')})`);
-      if (r.lc50_fish != null) parts.push(`LC50 (fish, 96h) = ${r.lc50_fish} mg/L (${classifyLC50(r.lc50_fish).replace('LC50: ', '')})`);
-      if (r.mutagenicity) parts.push(`Mutagenicity (Ames): ${r.mutagenicity}`);
-      if (r.qsar_model) parts.push(`Model: ${r.qsar_model}`);
-      document.getElementById('effSummary').textContent =
-        parts.length ? parts.join(' · ') : 'No QSAR fields available for this record.';
+      // acumular conexiones país -> grupo
+      data.forEach(r => {
+        const c = r.country;
+        const g = drugGroupOf(r.compound);
+        if (c && idx.has(c)) {
+          M[idx.get(c)][idx.get(g)] += 1;
+          // opcional: si quieres simetría, también de grupo->país
+          M[idx.get(g)][idx.get(c)] += 1;
+        }
+      });
 
-      // Tabla de valores
-      const rows = [
-        ['logKow', r.logkow],
-        ['Solubility (mg/L)', r.solubility],
-        ['BCF (L/kg)', r.bcf],
-        ['LC50 Fish (mg/L)', r.lc50_fish],
-        ['EC50 Daphnia (mg/L)', r.ec50_daphnia],
-        ['EC50 Algae (mg/L)', r.ec50_algae],
-        ['Mutagenicity (Ames)', r.mutagenicity || ''],
-        ['Biodegradability (%)', r.biodeg_pct],
-        ['Domain Score', r.ad_score],
-        ['AD Class', r.ad_class || ''],
-        ['QSAR Model', r.qsar_model || '']
-      ];
-      document.getElementById('effTable').innerHTML = rows.map(([k, v]) => `
-        <tr class="border-b">
-          <td class="p-2 text-gray-600">${k}</td>
-          <td class="p-2">${v == null || v === '' ? '<span class="text-gray-400">N/A</span>' : v}</td>
-        </tr>
-      `).join('');
+      // limpiar SVG previo
+      const wrap = d3.select('#chordChart');
+      wrap.selectAll('*').remove();
+
+      const width = wrap.node().clientWidth || 600;
+      const height = wrap.node().clientHeight || 380;
+      const outerRadius = Math.min(width, height) * 0.5 - 10;
+      const innerRadius = outerRadius - 18;
+
+      const svg = wrap.append('svg')
+        .attr('viewBox', `${-width/2} ${-height/2} ${width} ${height}`);
+
+      const chord = d3.chordDirected()
+        .padAngle(0.02)
+        .sortSubgroups(d3.descending)
+        (M);
+
+      const arc = d3.arc()
+        .innerRadius(innerRadius)
+        .outerRadius(outerRadius);
+
+      const ribbon = d3.ribbonArrow()
+        .radius(innerRadius)
+        .padAngle(0.005);
+
+      const color = d3.scaleOrdinal()
+        .domain(nodes)
+        .range(d3.schemeTableau10.concat(d3.schemeSet3));
+
+      // Grupos (arcos)
+      const g = svg.append('g')
+        .selectAll('g')
+        .data(chord.groups)
+        .join('g');
+
+      g.append('path')
+        .attr('fill', d => color(nodes[d.index]))
+        .attr('stroke', d => d3.color(color(nodes[d.index])).darker())
+        .attr('d', arc);
+
+      // Etiquetas
+      g.append('text')
+        .each(d => d.angle = (d.startAngle + d.endAngle) / 2)
+        .attr('dy', '0.35em')
+        .attr('transform', d => `
+          rotate(${(d.angle * 180 / Math.PI - 90)})
+          translate(${outerRadius + 12})
+          ${d.angle > Math.PI ? 'rotate(180)' : ''}
+        `)
+        .style('font-size', '10px')
+        .style('text-anchor', d => d.angle > Math.PI ? 'end' : null)
+        .text(d => nodes[d.index]);
+
+      // Cintas
+      svg.append('g')
+        .attr('fill-opacity', 0.75)
+        .selectAll('path')
+        .data(chord)
+        .join('path')
+        .attr('fill', d => color(nodes[d.source.index]))
+        .attr('stroke', d => d3.color(color(nodes[d.source.index])).darker())
+        .attr('d', ribbon)
+        .append('title')
+        .text(d => {
+          const a = nodes[d.source.index], b = nodes[d.target.index];
+          return `${a} → ${b}: ${M[d.source.index][d.target.index]}`;
+        });
+    }
+
+    /* --------- GRÁFICO 2: BARRAS APILADAS (Chart.js) --------- */
+    function destroyIfExists(chartRef) {
+      if (chartRef && typeof chartRef.destroy === 'function') chartRef.destroy();
+    }
+
+    function buildBarStack(data) {
+      const matrixKeys = ['Wastewater','Freshwater','Seawater','Drinking water','Biota','Air','Soil'];
+      const grouped = {};
+      data.forEach(r => {
+        const c = r.country || 'Unknown';
+        const m = r.matrix || 'Unknown';
+        if (!grouped[c]) grouped[c] = {};
+        grouped[c][m] = (grouped[c][m] || 0) + 1;
+      });
+
+      const xCountries = Object.keys(grouped);
+      const datasets = matrixKeys
+        .filter(k => xCountries.some(c => grouped[c][k]))
+        .map(k => ({
+          label: k,
+          data: xCountries.map(c => grouped[c][k] || 0),
+          stack: 'stack1'
+        }));
+
+      destroyIfExists(matricesChart);
+      const ctx = document.getElementById('chartMatrices').getContext('2d');
+      matricesChart = new Chart(ctx, {
+        type: 'bar',
+        data: { labels: xCountries, datasets },
+        options: {
+          maintainAspectRatio: false,   // usa la altura del contenedor .vizCanvas
+          responsive: true,
+          plugins: {
+            title: { display: true, text: 'Environmental Matrix by Country (stacked counts)' },
+            legend: { position: 'right' }
+          },
+          scales: {
+            x: { stacked: true },
+            y: { stacked: true, beginAtZero: true }
+          }
+        }
+      });
     }
   </script>
 </body>
