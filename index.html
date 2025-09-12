@@ -5,20 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Environmental Occurrence of Illicit Drugs</title>
 
-  <!-- Tailwind for quick styling -->
+  <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
 
   <!-- Leaflet + extras -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
   <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
 
-  <!-- PapaParse to read CSV -->
+  <!-- PapaParse -->
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
   <style>
@@ -48,10 +46,17 @@
             <label for="q" class="text-sm font-medium">Search (site, link)</label>
             <input id="q" type="search" class="mt-1 w-full rounded-xl border px-3 py-2" placeholder="Keywords..." />
           </div>
+
           <div>
             <label for="countries" class="text-sm font-medium">Country (multi)</label>
             <select id="countries" multiple size="6" class="mt-1 w-full rounded-xl border px-3 py-2"></select>
           </div>
+
+          <div>
+            <label for="compounds" class="text-sm font-medium">Compound (multi)</label>
+            <select id="compounds" multiple size="6" class="mt-1 w-full rounded-xl border px-3 py-2"></select>
+          </div>
+
           <div>
             <label for="studyType" class="text-sm font-medium">Study type</label>
             <select id="studyType" class="mt-1 w-full rounded-xl border px-3 py-2">
@@ -62,6 +67,7 @@
               <option>Review</option>
             </select>
           </div>
+
           <div>
             <label for="matrix" class="text-sm font-medium">Environmental matrix</label>
             <select id="matrix" class="mt-1 w-full rounded-xl border px-3 py-2">
@@ -73,6 +79,7 @@
               <option>Soil</option>
             </select>
           </div>
+
           <div>
             <label class="text-sm font-medium">Publication year</label>
             <div class="mt-1 flex items-center gap-2">
@@ -81,6 +88,7 @@
               <input id="yearMax" type="number" class="w-24 rounded-xl border px-2 py-2" />
             </div>
           </div>
+
           <div>
             <label class="text-sm font-medium">Concentration</label>
             <div class="mt-1 grid grid-cols-2 gap-2">
@@ -88,10 +96,12 @@
               <input id="concMax" type="number" step="any" class="rounded-xl border px-3 py-2" placeholder="max" />
             </div>
           </div>
+
           <div class="flex items-center gap-2">
             <input id="onlyWithCoords" type="checkbox" class="rounded" />
             <label for="onlyWithCoords" class="text-sm">Only studies with coordinates</label>
           </div>
+
           <div class="pt-2">
             <button id="btnApply" class="w-full px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white">Apply filters</button>
           </div>
@@ -101,9 +111,10 @@
 
     <!-- Main content -->
     <section class="lg:col-span-3 space-y-6">
-      <div class="bg-white border rounded-2xl p-4 shadow-sm flex flex-wrap gap-4 items-center justify-between">
+      <!-- MAP CARD -->
+      <div id="mapHeader" class="bg-white border rounded-2xl p-4 shadow-sm flex flex-wrap gap-4 items-center justify-between">
         <div>
-          <h2 class="text-lg font-semibold">Map & data table</h2>
+          <h2 class="text-lg font-semibold">Map</h2>
           <p class="text-sm text-gray-600">Illicit drugs in the environment – focus on cocaine and metabolites</p>
         </div>
         <div class="flex items-center gap-3 text-sm">
@@ -113,10 +124,24 @@
             <input id="toggleHeat" type="checkbox" class="rounded" />
             <span>Heatmap view</span>
           </label>
+          <button id="collapseMap" class="px-3 py-1 rounded-lg border hover:bg-gray-50">Hide</button>
         </div>
       </div>
-      <div id="map" class="bg-white border rounded-2xl overflow-hidden shadow-sm"></div>
-      <div class="bg-white border rounded-2xl p-4 shadow-sm">
+      <div id="mapCard" class="bg-white border rounded-2xl overflow-hidden shadow-sm">
+        <div id="map" class="h-[520px]"></div>
+      </div>
+
+      <!-- TABLE CARD (starts hidden) -->
+      <div id="tableHeader" class="bg-white border rounded-2xl p-4 shadow-sm flex flex-wrap gap-4 items-center justify-between">
+        <div>
+          <h2 class="text-lg font-semibold">Data table</h2>
+          <p class="text-sm text-gray-600">Sortable table with filters applied</p>
+        </div>
+        <div class="flex items-center gap-3 text-sm">
+          <button id="collapseTable" class="px-3 py-1 rounded-lg border hover:bg-gray-50">Show</button>
+        </div>
+      </div>
+      <div id="tableCard" class="hidden bg-white border rounded-2xl p-4 shadow-sm">
         <div class="overflow-x-auto">
           <table id="dataTable" class="min-w-full text-sm">
             <thead>
@@ -137,6 +162,46 @@
           </table>
         </div>
       </div>
+
+      <!-- EFFECTS CARD -->
+      <div id="effectsHeader" class="bg-white border rounded-2xl p-4 shadow-sm">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-semibold">Predicted effects (QSAR)</h2>
+            <p class="text-sm text-gray-600">
+              Based on VEGA QSAR fields in your sheet (logKow, BCF, LC50, Mutagenicity, etc.).
+            </p>
+          </div>
+          <div class="text-xs text-gray-500" id="effectsHint">Select a site to view details.</div>
+        </div>
+
+        <div id="effectsCard" class="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <!-- Left: summary -->
+          <div class="p-3 border rounded-xl">
+            <h3 class="font-medium mb-2" id="effTitle">No site selected</h3>
+            <div id="effBadges" class="flex flex-wrap gap-2 text-xs"></div>
+            <div class="mt-3 text-sm text-gray-700" id="effSummary">
+              Choose a marker on the map to see QSAR-based effects.
+            </div>
+          </div>
+          <!-- Right: table -->
+          <div class="p-3 border rounded-xl overflow-x-auto">
+            <table class="min-w-full text-sm">
+              <tbody id="effTable"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- IMAGES / TRENDS CARD -->
+      <div id="imagesHeader" class="bg-white border rounded-2xl p-4 shadow-sm">
+        <h2 class="text-lg font-semibold mb-2">Trends</h2>
+        <p class="text-xs text-gray-500 mb-3">Tip: browsers no siempre renderizan TIFF. Si no ves las imágenes, conviene subirlas como PNG/JPG/WebP.</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <img src="images/image1.jpg" alt="Image 1" class="rounded-lg shadow-md border object-contain w-full h-80 bg-gray-50">
+          <img src="images/image2.jpg" alt="Image 2" class="rounded-lg shadow-md border object-contain w-full h-80 bg-gray-50">
+        </div>
+      </div>
     </section>
   </main>
 
@@ -145,7 +210,7 @@
   </footer>
 
   <script>
-    /* === Replace here if you change sheet === */
+    /* === CSV de Google Sheets (HOJA 2) === */
     const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ0oe0Oz6VhNMYDcsLeJefA6y7ArU_cT8pafvGKJD4T_OlG59CWel1Mh1AdvHuEBjnWWF6nKB440MIu/pub?gid=43236599&single=true&output=csv";
 
     let records = [];
@@ -156,6 +221,8 @@
     document.addEventListener('DOMContentLoaded', () => {
       initMap();
       loadFromSheet();
+
+      // filtros
       document.getElementById('btnApply').addEventListener('click', applyFilters);
       document.getElementById('toggleHeat').addEventListener('change', renderMap);
       document.querySelectorAll('#dataTable th.sortable').forEach(th => {
@@ -166,7 +233,125 @@
           renderTable();
         });
       });
+
+      // plegar mapa
+      const collapseMapBtn = document.getElementById('collapseMap');
+      const mapCard = document.getElementById('mapCard');
+      collapseMapBtn.addEventListener('click', () => {
+        mapCard.classList.toggle('hidden');
+        collapseMapBtn.textContent = mapCard.classList.contains('hidden') ? 'Show' : 'Hide';
+        if (!mapCard.classList.contains('hidden')) setTimeout(() => map?.invalidateSize(), 150);
+      });
+
+      // tabla inicia oculta
+      const collapseTableBtn = document.getElementById('collapseTable');
+      const tableCard = document.getElementById('tableCard');
+      collapseTableBtn.textContent = "Show";
+      collapseTableBtn.addEventListener('click', () => {
+        tableCard.classList.toggle('hidden');
+        collapseTableBtn.textContent = tableCard.classList.contains('hidden') ? 'Show' : 'Hide';
+      });
     });
+
+    /* ---------- Helpers ---------- */
+    function safeString(v, fallback = "N/A") {
+      if (v === null || v === undefined) return fallback;
+      const s = String(v).trim();
+      return s === "" ? fallback : s;
+    }
+    function normalizeKey(s) {
+      return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    }
+
+    // Número tolerante: coma decimal, ± y guiones Unicode
+    function parseNumberFlexible(v) {
+      if (v === null || v === undefined) return null;
+      let s = String(v).trim();
+      if (!s) return null;
+      s = s.replace(/[−–—]/g, '-');     // menos unicode -> '-'
+      if (s.includes('±')) s = s.split('±')[0].trim(); // usa la media
+      if (s.includes(',')) {            // coma decimal -> punto
+        s = s.replace(/\./g, '');
+        s = s.replace(/,/g, '.');
+      }
+      s = s.replace(/[^0-9eE+\-\.]/g, '');
+      const n = Number(s);
+      return Number.isFinite(n) ? n : null;
+    }
+    function safeParseFloat(v) { return parseNumberFlexible(v); }
+
+    // Aliases tolerantes (inglés/español, acentos, etc.)
+    const HEADER_ALIASES = {
+      'country':'country','pais':'country','país':'country',
+      'site':'site','sitio':'site','lugar':'site',
+      'latitude':'lat','lat':'lat','latitud':'lat',
+      'longitude':'lon','lon':'lon','longitud':'lon',
+      'environmental matrix':'matrix','matriz ambiental':'matrix','matrix':'matrix',
+      'study type':'study_type','tipo de estudio':'study_type',
+      'compound':'compound','compuesto':'compound',
+      'concentration':'concentration_value','concentracion':'concentration_value','concentración':'concentration_value',
+      'units':'concentration_unit','unidades':'concentration_unit',
+      'analytical methods':'method','metodos analiticos':'method','métodos analíticos':'method',
+      'publication year':'year','year':'year','año de publicacion':'year','año de publicación':'year',
+      'paper link':'doi','link':'doi','enlace':'doi','doi':'doi'
+    };
+
+    // Aliases para columnas QSAR
+    Object.assign(HEADER_ALIASES, {
+      'logkow': 'logkow', 'log kow': 'logkow', 'logp': 'logkow',
+      'solubility (mg/l)': 'solubility', 'solubility': 'solubility',
+      'bcf (l/kg)': 'bcf', 'bcf': 'bcf',
+      'lc50 fish (mg/l)': 'lc50_fish', 'lc50 fish': 'lc50_fish',
+      'ec50 daphnia (mg/l)': 'ec50_daphnia', 'ec50 daphnia': 'ec50_daphnia',
+      'ec50 algae (mg/l)': 'ec50_algae', 'ec50 algae': 'ec50_algae',
+      'mutagenicity': 'mutagenicity',
+      'biodegradability (%)': 'biodeg_pct', 'biodegradability': 'biodeg_pct',
+      'domain score': 'ad_score', 'applicability domain score': 'ad_score',
+      'qsar model': 'qsar_model', 'ad class': 'ad_class'
+    });
+
+    function mapRow(rawRow) {
+      const picked = {};
+      for (const k in rawRow) {
+        const aliasKey = HEADER_ALIASES[normalizeKey(k)];
+        if (aliasKey) picked[aliasKey] = rawRow[k];
+      }
+
+      const concMean = parseNumberFlexible(picked.concentration_value);
+      const concStr = picked.concentration_value != null ? String(picked.concentration_value) : '';
+
+      return {
+        country: safeString(picked.country),
+        site: safeString(picked.site),
+        lat: safeParseFloat(picked.lat),
+        lon: safeParseFloat(picked.lon),
+        matrix: safeString(picked.matrix),
+        study_type: safeString(picked.study_type),
+        compound: safeString(picked.compound),
+        concentration_value: concMean,         // número (media si venía "±")
+        concentration_text: concStr || null,   // texto original para mostrar si quieres
+        concentration_unit: safeString(picked.concentration_unit),
+        method: safeString(picked.method),
+        year: (() => {
+          const n = safeParseFloat(picked.year);
+          return Number.isFinite(n) ? Math.trunc(n) : null;
+        })(),
+        doi: (picked.doi && String(picked.doi).trim() !== '') ? picked.doi : null,
+
+        // QSAR
+        logkow: safeParseFloat(picked.logkow),
+        solubility: safeParseFloat(picked.solubility),
+        bcf: safeParseFloat(picked.bcf),
+        lc50_fish: safeParseFloat(picked.lc50_fish),
+        ec50_daphnia: safeParseFloat(picked.ec50_daphnia),
+        ec50_algae: safeParseFloat(picked.ec50_algae),
+        mutagenicity: picked.mutagenicity ? String(picked.mutagenicity).trim() : null,
+        biodeg_pct: safeParseFloat(picked.biodeg_pct),
+        ad_score: safeParseFloat(picked.ad_score),
+        ad_class: picked.ad_class ? String(picked.ad_class).trim() : null,
+        qsar_model: picked.qsar_model ? String(picked.qsar_model).trim() : null
+      };
+    }
 
     async function loadFromSheet() {
       try {
@@ -175,11 +360,10 @@
         const csvText = await resp.text();
 
         const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
-        // Map defensively and drop truly empty rows
         const rows = parsed.data
           .filter(row => row && typeof row === 'object' && Object.keys(row).length > 0)
           .map(mapRow)
-          .filter(r => r && (r.country || r.site)); // keep at least some identity
+          .filter(r => r && (r.country || r.site));
 
         records = rows;
         populateFilters(records);
@@ -190,46 +374,18 @@
       }
     }
 
-    function safeParseFloat(v) {
-      if (v === null || v === undefined) return null;
-      const s = (typeof v === 'string') ? v.trim() : v;
-      if (s === "") return null;
-      const n = parseFloat(s);
-      return Number.isFinite(n) ? n : null;
-    }
-
-    function safeString(v, fallback = "N/A") {
-      if (v === null || v === undefined) return fallback;
-      const s = String(v).trim();
-      return s === "" ? fallback : s;
-    }
-
-    function mapRow(row) {
-      // Expecting exact headers in English; fill N/A when empty
-      return {
-        country: safeString(row["Country"]),
-        site: safeString(row["Site"]),
-        lat: safeParseFloat(row["Latitude"]),
-        lon: safeParseFloat(row["Longitude"]),
-        matrix: safeString(row["Environmental Matrix"]),
-        study_type: safeString(row["Study type"]),
-        compound: safeString(row["Compound"]),
-        concentration_value: safeParseFloat(row["Concentration"]),
-        concentration_unit: safeString(row["Units"]),
-        method: safeString(row["Analytical methods"]),
-        year: (val => {
-          const n = safeParseFloat(row["Publication year"]);
-          return Number.isFinite(n) ? Math.trunc(n) : null;
-        })(),
-        doi: (row["Paper link"] && String(row["Paper link"]).trim() !== "") ? row["Paper link"] : null
-      };
-    }
-
     function populateFilters(data) {
+      // Countries
       const countries = Array.from(new Set(data.map(d => d.country).filter(Boolean))).sort();
-      const $countries = document.getElementById('countries');
-      $countries.innerHTML = countries.map(c => `<option value="${c}">${c}</option>`).join('');
+      document.getElementById('countries').innerHTML =
+        countries.map(c => `<option value="${c}">${c}</option>`).join('');
 
+      // Compounds
+      const compounds = Array.from(new Set(data.map(d => d.compound).filter(Boolean))).sort();
+      document.getElementById('compounds').innerHTML =
+        compounds.map(c => `<option value="${c}">${c}</option>`).join('');
+
+      // Years
       const years = data.map(d => d.year).filter(v => typeof v === 'number');
       document.getElementById('yearMin').value = years.length ? Math.min(...years) : 2000;
       document.getElementById('yearMax').value = years.length ? Math.max(...years) : new Date().getFullYear();
@@ -238,10 +394,11 @@
     function applyFilters() {
       const q = (document.getElementById('q').value || '').toLowerCase();
       const countries = Array.from(document.getElementById('countries').selectedOptions).map(o => o.value);
+      const compoundsSel = Array.from(document.getElementById('compounds').selectedOptions).map(o => o.value);
       const studyType = document.getElementById('studyType').value;
       const matrix = document.getElementById('matrix').value;
-      const yearMin = parseInt(document.getElementById('yearMin').value, 10);
-      const yearMax = parseInt(document.getElementById('yearMax').value, 10);
+      const yearMin = parseInt(document.getElementById('yearMin').value || '', 10);
+      const yearMax = parseInt(document.getElementById('yearMax').value || '', 10);
       const concMin = parseFloat(document.getElementById('concMin').value);
       const concMax = parseFloat(document.getElementById('concMax').value);
       const onlyWithCoords = document.getElementById('onlyWithCoords').checked;
@@ -249,6 +406,7 @@
       filtered = records.filter(r => {
         if (q && !(`${r.site || ""}`.toLowerCase().includes(q))) return false;
         if (countries.length && !countries.includes(r.country)) return false;
+        if (compoundsSel.length && !compoundsSel.includes(r.compound)) return false;
         if (studyType && r.study_type !== studyType) return false;
         if (matrix && r.matrix !== matrix) return false;
         if (typeof r.year === 'number' && (r.year < yearMin || r.year > yearMax)) return false;
@@ -279,30 +437,44 @@
       filtered.forEach(r => {
         if (Number.isFinite(r.lat) && Number.isFinite(r.lon)) {
           const m = L.marker([r.lat, r.lon]);
-          const conc = (r.concentration_value != null ? r.concentration_value : 'N/A') + ' ' + (r.concentration_unit || '');
+
+          const concText = r.concentration_text
+            ? `${r.concentration_text} ${r.concentration_unit || ''}`
+            : (r.concentration_value != null
+                ? `${r.concentration_value} ${r.concentration_unit || ''}`
+                : 'N/A');
+
+          const qsarBits = [];
+          if (r.bcf != null) qsarBits.push(`BCF: ${r.bcf} L/kg`);
+          if (r.lc50_fish != null) qsarBits.push(`LC50 fish: ${r.lc50_fish} mg/L`);
+          if (r.mutagenicity) qsarBits.push(`Ames: ${r.mutagenicity}`);
+          const qsarLine = qsarBits.length ? `<br><i>${qsarBits.join(' · ')}</i>` : '';
+
           m.bindPopup(
-            `<b>${r.site}</b><br>${r.country}<br>${r.compound}<br>${conc}<br>${r.method}`
+            `<b>${r.site}</b><br>${r.country}<br>${r.compound}<br>${concText}<br>${r.method}${qsarLine}`
           );
+
+          m.on('click', () => renderEffects(r));
+
           markerLayer.addLayer(m);
           pts.push([r.lat, r.lon, 0.5]);
         }
       });
 
-      if (!map.hasLayer(markerLayer) && !document.getElementById('toggleHeat').checked) {
-        map.addLayer(markerLayer);
-      }
-      if (markerLayer.getLayers().length) {
-        map.fitBounds(markerLayer.getBounds(), { padding: [20, 20] });
-      }
-
-      if (document.getElementById('toggleHeat').checked) {
+      if (!document.getElementById('toggleHeat').checked) {
+        if (!map.hasLayer(markerLayer)) map.addLayer(markerLayer);
+        if (markerLayer.getLayers().length) {
+          map.fitBounds(markerLayer.getBounds(), { padding: [20, 20] });
+        }
+        if (map.hasLayer(heatLayer)) map.removeLayer(heatLayer);
+      } else {
         heatLayer.setLatLngs(pts);
         if (!map.hasLayer(heatLayer)) map.addLayer(heatLayer);
         if (map.hasLayer(markerLayer)) map.removeLayer(markerLayer);
-      } else {
-        if (!map.hasLayer(markerLayer)) map.addLayer(markerLayer);
-        if (map.hasLayer(heatLayer)) map.removeLayer(heatLayer);
       }
+
+      // Mostrar por defecto el primero filtrado si existe
+      if (filtered.length) renderEffects(filtered[0]);
     }
 
     function renderTable() {
@@ -345,6 +517,77 @@
         if (sa > sb) return dir === 'asc' ? 1 : -1;
         return 0;
       };
+    }
+
+    // --- Interpretadores simples para badges ---
+    function classifyBCF(bcf) {
+      if (bcf == null) return 'BCF: Unknown';
+      if (bcf > 2000) return 'BCF: High (bioaccumulative)';
+      if (bcf >= 500) return 'BCF: Moderate';
+      return 'BCF: Low';
+    }
+    function classifyLC50(lc50) {
+      if (lc50 == null) return 'LC50: Unknown';
+      if (lc50 < 1) return 'LC50: Very toxic (<1 mg/L)';
+      if (lc50 < 10) return 'LC50: Toxic (1–10 mg/L)';
+      if (lc50 < 100) return 'LC50: Harmful (10–100 mg/L)';
+      return 'LC50: Low concern (≥100 mg/L)';
+    }
+
+    function renderEffects(r) {
+      // Título
+      const effTitle = document.getElementById('effTitle');
+      effTitle.textContent = `${r.site || 'Unknown site'} — ${r.compound || 'Unknown compound'}`;
+
+      // Badges
+      const badges = [];
+      badges.push(`<span class="px-2 py-1 rounded-full bg-gray-100">${classifyBCF(r.bcf)}</span>`);
+      badges.push(`<span class="px-2 py-1 rounded-full bg-gray-100">${classifyLC50(r.lc50_fish)}</span>`);
+      if (r.mutagenicity) {
+        badges.push(`<span class="px-2 py-1 rounded-full ${
+          /pos/i.test(r.mutagenicity) ? 'bg-red-100 text-red-700' :
+          /neg/i.test(r.mutagenicity) ? 'bg-green-100 text-green-700' :
+          'bg-yellow-100 text-yellow-700'
+        }">Ames: ${r.mutagenicity}</span>`);
+      }
+      if (r.ad_score != null) {
+        badges.push(`<span class="px-2 py-1 rounded-full bg-indigo-50 text-indigo-700">AD: ${r.ad_score}</span>`);
+      }
+      if (r.ad_class) {
+        badges.push(`<span class="px-2 py-1 rounded-full bg-indigo-50 text-indigo-700">${r.ad_class}</span>`);
+      }
+      document.getElementById('effBadges').innerHTML = badges.join(' ');
+
+      // Resumen textual
+      const parts = [];
+      if (r.logkow != null) parts.push(`logKow = ${r.logkow}`);
+      if (r.bcf != null) parts.push(`BCF = ${r.bcf} L/kg (${classifyBCF(r.bcf).replace('BCF: ', '')})`);
+      if (r.lc50_fish != null) parts.push(`LC50 (fish, 96h) = ${r.lc50_fish} mg/L (${classifyLC50(r.lc50_fish).replace('LC50: ', '')})`);
+      if (r.mutagenicity) parts.push(`Mutagenicity (Ames): ${r.mutagenicity}`);
+      if (r.qsar_model) parts.push(`Model: ${r.qsar_model}`);
+      document.getElementById('effSummary').textContent =
+        parts.length ? parts.join(' · ') : 'No QSAR fields available for this record.';
+
+      // Tabla de valores
+      const rows = [
+        ['logKow', r.logkow],
+        ['Solubility (mg/L)', r.solubility],
+        ['BCF (L/kg)', r.bcf],
+        ['LC50 Fish (mg/L)', r.lc50_fish],
+        ['EC50 Daphnia (mg/L)', r.ec50_daphnia],
+        ['EC50 Algae (mg/L)', r.ec50_algae],
+        ['Mutagenicity (Ames)', r.mutagenicity || ''],
+        ['Biodegradability (%)', r.biodeg_pct],
+        ['Domain Score', r.ad_score],
+        ['AD Class', r.ad_class || ''],
+        ['QSAR Model', r.qsar_model || '']
+      ];
+      document.getElementById('effTable').innerHTML = rows.map(([k, v]) => `
+        <tr class="border-b">
+          <td class="p-2 text-gray-600">${k}</td>
+          <td class="p-2">${v == null || v === '' ? '<span class="text-gray-400">N/A</span>' : v}</td>
+        </tr>
+      `).join('');
     }
   </script>
 </body>
