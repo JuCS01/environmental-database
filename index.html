@@ -193,56 +193,6 @@
         </div>
       </div>
 
-      <!-- === DETAILED QSAR TABLES === -->
-      <div id="qsarTables" class="bg-white border rounded-2xl p-4 shadow-sm mt-6">
-        <div class="flex items-center justify-between mb-2">
-          <h2 class="text-lg font-semibold">Detailed QSAR tables</h2>
-          <span class="text-xs text-gray-500">Source: fields parsed from your Google Sheet</span>
-        </div>
-
-        <div id="qsarTablesGrid" class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <!-- Table: Physchem / Mobility / Sorption -->
-          <div class="p-3 border rounded-xl overflow-x-auto">
-            <h3 class="font-medium mb-2">Physicochemical / Mobility / Sorption</h3>
-            <table class="min-w-full text-sm">
-              <tbody id="tbl_physchem"></tbody>
-            </table>
-          </div>
-
-          <!-- Table: Persistence (half-life) -->
-          <div class="p-3 border rounded-xl overflow-x-auto">
-            <h3 class="font-medium mb-2">Persistence (half-life)</h3>
-            <table class="min-w-full text-sm">
-              <tbody id="tbl_persistence"></tbody>
-            </table>
-          </div>
-
-          <!-- Table: Bioaccumulation -->
-          <div class="p-3 border rounded-xl overflow-x-auto">
-            <h3 class="font-medium mb-2">Bioaccumulation</h3>
-            <table class="min-w-full text-sm">
-              <tbody id="tbl_bioaccum"></tbody>
-            </table>
-          </div>
-
-          <!-- Table: Acute ecotoxicity -->
-          <div class="p-3 border rounded-xl overflow-x-auto">
-            <h3 class="font-medium mb-2">Acute ecotoxicity</h3>
-            <table class="min-w-full text-sm">
-              <tbody id="tbl_acute"></tbody>
-            </table>
-          </div>
-
-          <!-- Table: Chronic ecotoxicity + Mutagenicity -->
-          <div class="p-3 border rounded-xl overflow-x-auto">
-            <h3 class="font-medium mb-2">Chronic ecotoxicity & Mutagenicity</h3>
-            <table class="min-w-full text-sm">
-              <tbody id="tbl_chronic_mut"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
       <!-- IMAGES / TRENDS CARD -->
       <div id="imagesHeader" class="bg-white border rounded-2xl p-4 shadow-sm">
         <h2 class="text-lg font-semibold mb-2">Trends</h2>
@@ -346,9 +296,8 @@
       'paper link':'doi','link':'doi','enlace':'doi','doi':'doi'
     };
 
-    // Aliases para columnas QSAR
+    // Aliases para columnas QSAR básicas
     Object.assign(HEADER_ALIASES, {
-      // básicos
       'logkow': 'logkow', 'log kow': 'logkow', 'logp': 'logkow',
       'solubility (mg/l)': 'solubility', 'solubility': 'solubility',
       'bcf (l/kg)': 'bcf', 'bcf': 'bcf',
@@ -358,28 +307,7 @@
       'mutagenicity': 'mutagenicity',
       'biodegradability (%)': 'biodeg_pct', 'biodegradability': 'biodeg_pct',
       'domain score': 'ad_score', 'applicability domain score': 'ad_score',
-      'qsar model': 'qsar_model', 'ad class': 'ad_class',
-
-      // sorción
-      'log koc (kow method)': 'logkoc', 'logkoc': 'logkoc',
-      'koc (kow method)': 'koc', 'koc': 'koc',
-
-      // persistencia (t1/2)
-      'half-life on water (hours)': 't12_h2o_h', 'half life on water (hours)': 't12_h2o_h',
-      'half-life on water (days)':  't12_h2o_d',
-      'half-life on sediment (hours)': 't12_sed_h',
-      'half-life on sediment (days)':  't12_sed_d',
-      'half-life on soil (hours)': 't12_soil_h',
-      'half-life on soil (days)':  't12_soil_d',
-      'removal rate in sewage treatment plant - stp (%)': 'stp_removal',
-
-      // bioacumulación extra
-      'log bcf regression method': 'logbcf', 'log bcf': 'logbcf',
-
-      // crónicos
-      'fish chronic value': 'cv_fish',
-      'daphnid chronic value': 'cv_daphnia', 'daphnia chronic value': 'cv_daphnia',
-      'green algae chronic value': 'cv_algae'
+      'qsar model': 'qsar_model', 'ad class': 'ad_class'
     });
 
     function mapRow(rawRow) {
@@ -410,7 +338,7 @@
         })(),
         doi: (picked.doi && String(picked.doi).trim() !== '') ? picked.doi : null,
 
-        // QSAR básicos
+        // QSAR básicos para el panel de efectos
         logkow: safeParseFloat(picked.logkow),
         solubility: safeParseFloat(picked.solubility),
         bcf: safeParseFloat(picked.bcf),
@@ -421,28 +349,7 @@
         biodeg_pct: safeParseFloat(picked.biodeg_pct),
         ad_score: safeParseFloat(picked.ad_score),
         ad_class: picked.ad_class ? String(picked.ad_class).trim() : null,
-        qsar_model: picked.qsar_model ? String(picked.qsar_model).trim() : null,
-
-        // Sorption / mobility
-        logkoc: safeParseFloat(picked.logkoc),
-        koc: safeParseFloat(picked.koc),
-
-        // Persistence (half-life, STP)
-        t12_h2o_h: safeParseFloat(picked.t12_h2o_h),
-        t12_h2o_d: safeParseFloat(picked.t12_h2o_d),
-        t12_sed_h: safeParseFloat(picked.t12_sed_h),
-        t12_sed_d: safeParseFloat(picked.t12_sed_d),
-        t12_soil_h: safeParseFloat(picked.t12_soil_h),
-        t12_soil_d: safeParseFloat(picked.t12_soil_d),
-        stp_removal: safeParseFloat(picked.stp_removal),
-
-        // Bioaccumulation extra
-        logbcf: safeParseFloat(picked.logbcf),
-
-        // Chronic ecotox
-        cv_fish: safeParseFloat(picked.cv_fish),
-        cv_daphnia: safeParseFloat(picked.cv_daphnia),
-        cv_algae: safeParseFloat(picked.cv_algae),
+        qsar_model: picked.qsar_model ? String(picked.qsar_model).trim() : null
       };
     }
 
@@ -612,23 +519,6 @@
       };
     }
 
-    // ---- helpers para tablas detalladas ----
-    function fmt(v, unit='') {
-      if (v === null || v === undefined || v === '') return '<span class="text-gray-400">N/A</span>';
-      const n = Number(v);
-      const s = Number.isFinite(n) ? (Math.abs(n) >= 1000 ? n.toExponential(2) : n.toString()) : String(v);
-      return unit ? `${s} ${unit}` : s;
-    }
-    function rowHTML(label, valueHTML) {
-      return `<tr class="border-b">
-        <td class="p-2 text-gray-600">${label}</td>
-        <td class="p-2">${valueHTML}</td>
-      </tr>`;
-    }
-    function fillTable(tbodyId, rows) {
-      document.getElementById(tbodyId).innerHTML = rows.map(r => rowHTML(r[0], r[1])).join('');
-    }
-
     // --- Interpretadores simples para badges ---
     function classifyBCF(bcf) {
       if (bcf == null) return 'BCF: Unknown';
@@ -678,7 +568,7 @@
       document.getElementById('effSummary').textContent =
         parts.length ? parts.join(' · ') : 'No QSAR fields available for this record.';
 
-      // Tabla resumida
+      // Tabla resumida (lado derecho del card)
       const rows = [
         ['logKow', r.logkow],
         ['Solubility (mg/L)', r.solubility],
@@ -698,52 +588,6 @@
           <td class="p-2">${v == null || v === '' ? '<span class="text-gray-400">N/A</span>' : v}</td>
         </tr>
       `).join('');
-
-      // Tablas detalladas
-      renderDetailTables(r);
-    }
-
-    function renderDetailTables(r) {
-      // 1) Physicochemical / Mobility / Sorption
-      fillTable('tbl_physchem', [
-        ['Water solubility (mg/L)', fmt(r.solubility, 'mg/L')],
-        ['Mobility – logKow', fmt(r.logkow)],
-        ['Sorption – logKoc (Kow method)', fmt(r.logkoc)],
-        ['Sorption – Koc (Kow method)', fmt(r.koc)]
-      ]);
-
-      // 2) Persistence (half-life)
-      fillTable('tbl_persistence', [
-        ['Half-life on water (hours)', fmt(r.t12_h2o_h, 'h')],
-        ['Half-life on water (days)', fmt(r.t12_h2o_d, 'd')],
-        ['Half-life on sediment (hours)', fmt(r.t12_sed_h, 'h')],
-        ['Half-life on sediment (days)', fmt(r.t12_sed_d, 'd')],
-        ['Half-life on soil (hours)', fmt(r.t12_soil_h, 'h')],
-        ['Half-life on soil (days)', fmt(r.t12_soil_d, 'd')],
-        ['Removal rate in STP (%)', fmt(r.stp_removal, '%')]
-      ]);
-
-      // 3) Bioaccumulation
-      fillTable('tbl_bioaccum', [
-        ['BCF (L/kg wet-wt)', fmt(r.bcf, 'L/kg')],
-        ['log BCF (regression)', fmt(r.logbcf)],
-        ['logKow used', fmt(r.logkow)]
-      ]);
-
-      // 4) Acute ecotoxicity
-      fillTable('tbl_acute', [
-        ['Fish LC50 (96 h)', fmt(r.lc50_fish, 'mg/L')],
-        ['Daphnid LC50 (48 h)', fmt(r.ec50_daphnia, 'mg/L')],
-        ['Green algae EC50 (96 h)', fmt(r.ec50_algae, 'mg/L')]
-      ]);
-
-      // 5) Chronic ecotoxicity & Mutagenicity
-      fillTable('tbl_chronic_mut', [
-        ['Fish – Chronic Value', fmt(r.cv_fish, 'mg/L')],
-        ['Daphnid – Chronic Value', fmt(r.cv_daphnia, 'mg/L')],
-        ['Green algae – Chronic Value', fmt(r.cv_algae, 'mg/L')],
-        ['Mutagenicity (Ames tests / VEGA QSAR)', r.mutagenicity ? r.mutagenicity : '<span class="text-gray-400">N/A</span>']
-      ]);
     }
   </script>
 </body>
