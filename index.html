@@ -296,7 +296,7 @@
       'paper link':'doi','link':'doi','enlace':'doi','doi':'doi'
     };
 
-    // Aliases para columnas QSAR básicas
+    // Aliases para columnas QSAR
     Object.assign(HEADER_ALIASES, {
       'logkow': 'logkow', 'log kow': 'logkow', 'logp': 'logkow',
       'solubility (mg/l)': 'solubility', 'solubility': 'solubility',
@@ -404,7 +404,7 @@
       const onlyWithCoords = document.getElementById('onlyWithCoords').checked;
 
       filtered = records.filter(r => {
-        if (q && !(`${r.site || ""}`.toLowerCase().includes(q))) return false;
+        if (q && !((r.site || "").toLowerCase().includes(q))) return false;
         if (countries.length && !countries.includes(r.country)) return false;
         if (compoundsSel.length && !compoundsSel.includes(r.compound)) return false;
         if (studyType && r.study_type !== studyType) return false;
