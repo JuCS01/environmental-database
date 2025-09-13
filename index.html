@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Environmental Occurrence of Illicit Drugs</title>
+  <title>QERP - Illicit drugs</title>
 
   <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -30,7 +30,7 @@
   <header class="bg-white border-b sticky top-0 z-30">
     <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
       <div>
-        <h1 class="text-2xl font-bold">Environmental Occurrence of Illicit Drugs</h1>
+        <h1 class="text-2xl font-bold">QERP - Illicit drugs</h1>
         <p class="text-sm text-gray-600">Prototype connected to Google Sheets (CSV export).</p>
       </div>
     </div>
@@ -163,6 +163,16 @@
         </div>
       </div>
 
+      <!-- IMAGES / TRENDS CARD -->
+      <div id="imagesHeader" class="bg-white border rounded-2xl p-4 shadow-sm">
+        <h2 class="text-lg font-semibold mb-2">Trends</h2>
+        <p class="text-xs text-gray-500 mb-3">Trends and insights in illicit drug occurrence studies</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <img src="images/image1.png" alt="Image 1" class="rounded-lg shadow-md border object-contain w-full h-80 bg-gray-50" loading="lazy">
+          <img src="images/image2.png" alt="Image 2" class="rounded-lg shadow-md border object-contain w-full h-80 bg-gray-50" loading="lazy">
+        </div>
+      </div>
+
       <!-- EFFECTS CARD -->
       <div id="effectsHeader" class="bg-white border rounded-2xl p-4 shadow-sm">
         <div class="flex items-center justify-between">
@@ -193,14 +203,16 @@
         </div>
       </div>
 
-      <!-- IMAGES / TRENDS CARD -->
-      <div id="imagesHeader" class="bg-white border rounded-2xl p-4 shadow-sm">
-        <h2 class="text-lg font-semibold mb-2">Trends</h2>
-        <p class="text-xs text-gray-500 mb-3">Tip: browsers no siempre renderizan TIFF. Si no ves las imágenes, conviene subirlas como PNG/JPG/WebP.</p>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <img src="images/image1.jpg" alt="Image 1" class="rounded-lg shadow-md border object-contain w-full h-80 bg-gray-50">
-          <img src="images/image2.jpg" alt="Image 2" class="rounded-lg shadow-md border object-contain w-full h-80 bg-gray-50">
+      <!-- AUTHORS / TEAM CARD -->
+      <div id="authorsHeader" class="bg-white border rounded-2xl p-4 shadow-sm">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-semibold">Team / Authors</h2>
+            <p class="text-sm text-gray-600"> </p>
+          </div>
         </div>
+
+        <div id="authorsGrid" class="mt-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4"></div>
       </div>
     </section>
   </main>
@@ -218,9 +230,32 @@
     let map, markerLayer, heatLayer;
     let sortState = { key: 'year', dir: 'desc' };
 
+    /* === Autores usando convención F#/L# en /images ===
+       Cambia la extensión si tus archivos no son .png
+    */
+    const IMG_EXT  = "png";  // "png" | "jpg" | "webp"
+    const LOGO_EXT = "png";  // "png" | "jpg" | "webp"
+
+    const authors = [
+      { id: "F1", name: "Julieth E. Chancay Sánchez (Programmer)" },
+      { id: "F2", name: "Isadora Ferrer do Nascimento" },
+      { id: "F3", name: "Camille Cristina Siguinolfi" },
+      { id: "F4", name: "Vitória Érica Dias Avelino da Silva" },
+      { id: "F5", name: "Daniele Moreira" },
+      { id: "F6", name: "Mónica Alejandra Herrera Agudelo" },
+      { id: "F7", name: "Daniela Alvarado Zambrado" },
+      { id: "F8", name: "Gustavo Kirsch" },
+      { id: "F9", name: "Camilo Dias Seabra Pereira" }
+    ].map((a, idx) => ({
+      ...a,
+      photo: `images/F${idx+1}.${IMG_EXT}`,
+      logo:  `images/L${idx+1}.${LOGO_EXT}`
+    }));
+
     document.addEventListener('DOMContentLoaded', () => {
       initMap();
       loadFromSheet();
+      renderAuthors();
 
       // filtros
       document.getElementById('btnApply').addEventListener('click', applyFilters);
@@ -263,14 +298,14 @@
       return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
     }
 
-    // Número tolerante: coma decimal, ± y guiones Unicode
+    // Número tolerante
     function parseNumberFlexible(v) {
       if (v === null || v === undefined) return null;
       let s = String(v).trim();
       if (!s) return null;
-      s = s.replace(/[−–—]/g, '-');     // menos unicode -> '-'
-      if (s.includes('±')) s = s.split('±')[0].trim(); // usa la media
-      if (s.includes(',')) {            // coma decimal -> punto
+      s = s.replace(/[−–—]/g, '-');
+      if (s.includes('±')) s = s.split('±')[0].trim();
+      if (s.includes(',')) {
         s = s.replace(/\./g, '');
         s = s.replace(/,/g, '.');
       }
@@ -280,7 +315,7 @@
     }
     function safeParseFloat(v) { return parseNumberFlexible(v); }
 
-    // Aliases tolerantes (inglés/español, acentos, etc.)
+    // Aliases tolerantes
     const HEADER_ALIASES = {
       'country':'country','pais':'country','país':'country',
       'site':'site','sitio':'site','lugar':'site',
@@ -296,7 +331,7 @@
       'paper link':'doi','link':'doi','enlace':'doi','doi':'doi'
     };
 
-    // Aliases para columnas QSAR
+    // Aliases QSAR
     Object.assign(HEADER_ALIASES, {
       'logkow': 'logkow', 'log kow': 'logkow', 'logp': 'logkow',
       'solubility (mg/l)': 'solubility', 'solubility': 'solubility',
@@ -328,8 +363,8 @@
         matrix: safeString(picked.matrix),
         study_type: safeString(picked.study_type),
         compound: safeString(picked.compound),
-        concentration_value: concMean,         // número (media si venía "±")
-        concentration_text: concStr || null,   // texto original
+        concentration_value: concMean,
+        concentration_text: concStr || null,
         concentration_unit: safeString(picked.concentration_unit),
         method: safeString(picked.method),
         year: (() => {
@@ -338,7 +373,7 @@
         })(),
         doi: (picked.doi && String(picked.doi).trim() !== '') ? picked.doi : null,
 
-        // QSAR básicos para el panel de efectos
+        // QSAR
         logkow: safeParseFloat(picked.logkow),
         solubility: safeParseFloat(picked.solubility),
         bcf: safeParseFloat(picked.bcf),
@@ -375,17 +410,14 @@
     }
 
     function populateFilters(data) {
-      // Countries
       const countries = Array.from(new Set(data.map(d => d.country).filter(Boolean))).sort();
       document.getElementById('countries').innerHTML =
         countries.map(c => `<option value="${c}">${c}</option>`).join('');
 
-      // Compounds
       const compounds = Array.from(new Set(data.map(d => d.compound).filter(Boolean))).sort();
       document.getElementById('compounds').innerHTML =
         compounds.map(c => `<option value="${c}">${c}</option>`).join('');
 
-      // Years
       const years = data.map(d => d.year).filter(v => typeof v === 'number');
       document.getElementById('yearMin').value = years.length ? Math.min(...years) : 2000;
       document.getElementById('yearMax').value = years.length ? Math.max(...years) : new Date().getFullYear();
@@ -404,7 +436,7 @@
       const onlyWithCoords = document.getElementById('onlyWithCoords').checked;
 
       filtered = records.filter(r => {
-        if (q && !((r.site || "").toLowerCase().includes(q))) return false;
+        if (q && !(`${r.site || ""}`.toLowerCase().includes(q))) return false;
         if (countries.length && !countries.includes(r.country)) return false;
         if (compoundsSel.length && !compoundsSel.includes(r.compound)) return false;
         if (studyType && r.study_type !== studyType) return false;
@@ -473,7 +505,6 @@
         if (map.hasLayer(markerLayer)) map.removeLayer(markerLayer);
       }
 
-      // Mostrar por defecto el primero filtrado si existe
       if (filtered.length) renderEffects(filtered[0]);
     }
 
@@ -519,7 +550,7 @@
       };
     }
 
-    // --- Interpretadores simples para badges ---
+    // --- Badges QSAR ---
     function classifyBCF(bcf) {
       if (bcf == null) return 'BCF: Unknown';
       if (bcf > 2000) return 'BCF: High (bioaccumulative)';
@@ -535,11 +566,9 @@
     }
 
     function renderEffects(r) {
-      // Título
       const effTitle = document.getElementById('effTitle');
       effTitle.textContent = `${r.site || 'Unknown site'} — ${r.compound || 'Unknown compound'}`;
 
-      // Badges
       const badges = [];
       badges.push(`<span class="px-2 py-1 rounded-full bg-gray-100">${classifyBCF(r.bcf)}</span>`);
       badges.push(`<span class="px-2 py-1 rounded-full bg-gray-100">${classifyLC50(r.lc50_fish)}</span>`);
@@ -558,7 +587,6 @@
       }
       document.getElementById('effBadges').innerHTML = badges.join(' ');
 
-      // Resumen textual
       const parts = [];
       if (r.logkow != null) parts.push(`logKow = ${r.logkow}`);
       if (r.bcf != null) parts.push(`BCF = ${r.bcf} L/kg (${classifyBCF(r.bcf).replace('BCF: ', '')})`);
@@ -568,7 +596,6 @@
       document.getElementById('effSummary').textContent =
         parts.length ? parts.join(' · ') : 'No QSAR fields available for this record.';
 
-      // Tabla resumida (lado derecho del card)
       const rows = [
         ['logKow', r.logkow],
         ['Solubility (mg/L)', r.solubility],
@@ -587,6 +614,29 @@
           <td class="p-2 text-gray-600">${k}</td>
           <td class="p-2">${v == null || v === '' ? '<span class="text-gray-400">N/A</span>' : v}</td>
         </tr>
+      `).join('');
+    }
+
+    /* ---------- AUTHORS UI (F#/L#) ---------- */
+    function renderAuthors() {
+      const grid = document.getElementById('authorsGrid');
+      if (!grid) return;
+
+      grid.innerHTML = authors.map(a => `
+        <div class="p-3 border rounded-xl hover:shadow-sm bg-white">
+          <div class="flex items-start gap-3">
+            <img src="${a.photo}" alt="Foto de ${a.name}"
+                 class="w-20 h-20 rounded-full object-cover border bg-gray-100" loading="lazy">
+            <div class="min-w-0 flex-1">
+              <h3 class="font-medium">${a.name}</h3>
+              <!-- Logo de la afiliación -->
+              <div class="mt-2">
+                <img src="${a.logo}" alt="Logo afiliación de ${a.name}"
+                     class="h-7 w-auto object-contain border rounded bg-white p-0.5" loading="lazy">
+              </div>
+            </div>
+          </div>
+        </div>
       `).join('');
     }
   </script>
